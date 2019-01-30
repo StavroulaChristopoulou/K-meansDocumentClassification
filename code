@@ -1,0 +1,214 @@
+#Each document is represented as a vector
+#  using the vector space model. The vector space model also called term vector model 
+# is an algebraic model for representing text document (or any object, in general) as vectors 
+# of identifiers. For example, TF-IDF weight.
+
+Here I have defined DocumentVector class whose instance holds the document and its corresponding representation on vector space.
+public class DocumentVector
+{
+    //Content represents the document(or any other object) to be clustered
+    public string Content { get; set; }
+    //represents the tf*idf of  each document
+    public float[] VectorSpace { get; set; }
+}
+#And instance of DocumentCollection represtnts all the documents to be clustered
+class DocumentCollection
+{
+    public  List<String> DocumentList { get; set; }
+}
+ #TF-IDF
+#TF-IDF stands for term frequency-inverse document frequency, is a numerical statistics which reflects how
+#  important a word is to a document in a collection or corpus, it is the most common weighting method 
+# used to describe documents in the Vector Space Model, particularly on IR problems.
+
+#The number of times a term occurs in a document is called its term frequency. We can calculate the term 
+# frequency for a word as the ratio of number of times the word occurs in the document to the total number of
+#  words in the document.
+
+#The inverse document frequency is a measure of whether the term is common or rare across all documents. 
+# It is obtained by dividing the total number of documents by the number of documents containing the term, 
+# and then taking the logarithm of that quotient.
+
+//Calculates TF-IDF weight for each term t in document d
+private static float FindTFIDF(string document, string term)
+{
+   float tf = FindTermFrequency(document, term);
+   float idf = FindInverseDocumentFrequency(term);
+   return tf * idf;
+}
+ 
+private static float FindTermFrequency(string document, string term)
+{
+   int count = r.Split(document).Where(s => s.ToUpper() == term.ToUpper()).Count();
+   //ratio of no of occurance of term t in document d to the total no of terms in the document
+   return (float)((float)count / (float)(r.Split(document).Count()));
+}
+ 
+private static float FindInverseDocumentFrequency(string term)
+{
+   //find the  no. of document that contains the term in whole document collection
+   int count = documentCollection.ToArray().Where(s => r.Split(
+       s.ToUpper()).ToArray().Contains(term.ToUpper())).Count();
+   /*
+    * log of the ratio of  total no of document in the collection to the no. of document containing the term
+    * we can also use Math.Log(count/(1+documentCollection.Count)) to deal with divide by zero case; 
+    */
+    return (float)Math.Log((float)documentCollection.Count() / (float)count);
+}
+
+#Finding Similarity Score
+#I have used cosine similarity to identify the similarity score of a document. 
+#The method FindCosineSimilarity takes two argument vecA and vecB as parameter which are vector 
+#representation of document A and B, and returns the similarity score which lies between 1 and 0, indicating 
+# that document A and B are completely similar and dissimilar respectively.
+
+public static float FindCosineSimilarity(float[] vecA, float[] vecB)
+{
+      var dotProduct = DotProduct(vecA, vecB);
+      var magnitudeOfA = Magnitude(vecA);
+      var magnitudeOfB = Magnitude(vecB);
+      float result = dotProduct / (magnitudeOfA * magnitudeOfB);
+      //when 0 is divided by 0 it shows result NaN so return 0 in such case.
+      if (float.IsNaN(result))
+          return 0;
+       else
+          return (float)result;
+ }
+
+ #K-Means Algorithm Implementation
+#To implement K-Means algorithm I have defined a class Centroid 
+#in which documents are assigned during the clustering process.
+public class Centroid
+{
+    public List<DocumentVector> GroupedDocument { get; set; }
+}
+
+#Preparing Document Cluster
+public static List<Centroid> PrepareDocumentCluster(int k, 
+          List<DocumentVector> documentCollection,ref int _counter)
+{
+   globalCounter = 0;
+   //prepares k initial centroid and assign one object randomly to each centroid
+   List<Centroid> centroidCollection = new List<Centroid>();
+   Centroid c;
+        
+   /*
+    * Avoid repeation of random number, if same no is generated 
+    * more than once same document is added to the next cluster 
+    * so avoid it using HasSet collection
+    */
+    HashSet<int> uniqRand = new HashSet<int>();
+    GenerateRandomNumber(ref uniqRand,k,documentCollection.Count);
+        
+    foreach(int pos in uniqRand) 
+    {
+        c = new Centroid();                
+        c.GroupedDocument = new List<DocumentVector>();
+        c.GroupedDocument.Add(documentCollection[pos]);
+        centroidCollection.Add(c);                
+    }
+
+    Boolean stoppingCriteria;
+    List<Centroid> resultSet;
+    List<Centroid> prevClusterCenter;
+        
+    InitializeClusterCentroid(out resultSet, centroidCollection.Count);
+
+    do
+    {
+         prevClusterCenter = centroidCollection;
+
+         foreach (DocumentVector obj in documentCollection)
+         {
+             int index = FindClosestClusterCenter(centroidCollection, obj);
+             resultSet[index].GroupedDocument.Add(obj);
+         }
+         InitializeClusterCentroid(out centroidCollection, centroidCollection.Count());
+         centroidCollection = CalculateMeanPoints(resultSet);
+         stoppingCriteria = CheckStoppingCriteria(prevClusterCenter, centroidCollection);
+         if (!stoppingCriteria)
+         {   
+             //initialize the result set for next iteration
+              InitializeClusterCentroid(out resultSet, centroidCollection.Count);
+         }
+
+    } while (stoppingCriteria == false);
+
+    _counter = counter;
+    return resultSet;
+
+}
+
+#Initializing cluster center
+#Cluster center is initialized for the next iteration, here the count variable holds 
+# the value of user defined initial cluster center.
+private static void InitializeClusterCentroid(out List<Centroid> centroid,int count)
+{
+  Centroid c;
+  centroid = new List<Centroid>();
+  for (int i = 0; i < count; i++)
+  {
+       c = new Centroid();
+       c.GroupedDocument = new List<DocumentVector>();
+       centroid.Add(c);
+  }
+} 
+
+#Finding closest cluster center
+#This function returns the index of closest cluster center for each document, I have used 
+#cosine similarity to identify the closeness of document. The array similarityMeasure holds the similarity 
+#score for the document obj with each cluster center, the index which has maximum score is taken as the 
+#closest cluster center of the given document
+private static int FindClosestClusterCenter(List<Centroid> clusterCenter,DocumentVector obj)
+{
+  float[] similarityMeasure = new float[clusterCenter.Count()];
+
+  for (int i = 0; i < clusterCenter.Count(); i++)
+  {
+       similarityMeasure[i] = 
+         SimilarityMatrics.FindCosineSimilarity(
+         clusterCenter[i].GroupedDocument[0].VectorSpace, obj.VectorSpace); 
+  }
+
+  int index = 0;
+  float maxValue = similarityMeasure[0];
+  for (int i = 0; i < similarityMeasure.Count(); i++)
+  {
+       //if document is similar assign the document
+       //to the lowest index cluster center to avoid the long loop
+       if (similarityMeasure[i] >maxValue)
+       {
+           maxValue = similarityMeasure[i];
+           index = i;
+       }
+   }
+   return index;
+}
+
+#Identifying the new position of the cluster center
+#After each document being assigned to its closest cluster center we 
+#recalculate the mean of each cluster center which indicates the new position of cluster center (centroid).
+
+private static List<Centroid> CalculateMeanPoints(List<Centroid> _clusterCenter)
+{
+ for (int i = 0; i < _clusterCenter.Count(); i++)
+ {
+      if (_clusterCenter[i].GroupedDocument.Count() > 0)
+      {
+         for (int j = 0; j < _clusterCenter[i].GroupedDocument[0].VectorSpace.Count(); j++)
+         {
+              float total = 0;
+                    
+              foreach (DocumentVector vSpace in _clusterCenter[i].GroupedDocument)
+              {
+                   total += vSpace.VectorSpace[j];
+              }
+              //reassign new calculated mean on each cluster center,
+              //It indicates the reposition of centroid
+              _clusterCenter[i].GroupedDocument[0].VectorSpace[j] = 
+                                  total / _clusterCenter[i].GroupedDocument.Count();
+          }
+      }
+  }
+  return _clusterCenter;
+}
